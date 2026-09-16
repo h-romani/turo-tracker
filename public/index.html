@@ -32,6 +32,35 @@ button{border:0;border-radius:8px;padding:9px 12px;font:inherit;font-weight:650;
 .toolbar{display:flex;gap:9px;align-items:center;margin-bottom:12px}.toolbar input{max-width:220px}
 .table-wrap{overflow:auto;border:1px solid var(--line);border-radius:10px}
 table{width:100%;border-collapse:collapse}th,td{padding:11px 12px;border-bottom:1px solid var(--line);text-align:center;white-space:nowrap}th{font-size:12px;color:var(--muted);background:#f8fafc}tr:last-child td{border-bottom:0}
+
+@media (max-width:480px){
+  .table-wrap{border:0}
+  table, thead, tbody, tr{display:block; width:100%}
+  thead{display:none}
+  tr{
+    background:#fff;
+    border:1px solid var(--line);
+    border-radius:10px;
+    margin-bottom:10px;
+    padding:12px;
+  }
+  td{
+    display:block;
+    border:0;
+    padding:2px 0;
+    white-space:normal;
+  }
+  td[data-col="vehicle"]{font-weight:700;font-size:15px}
+  td[data-col="plate"], td[data-col="vin"]{color:var(--muted);font-size:12px;display:inline-block;margin-right:10px}
+  td[data-col="status"]{margin:6px 0}
+  td[data-col="actions"]{
+    display:flex;
+    flex-direction:row;
+    gap:8px;
+    margin-top:8px;
+  }
+  td[data-col="actions"] button{flex:1;padding:8px 0;font-size:12px}
+}
 .badge{display:inline-block;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:700}.unlisted{background:#fee2e2;color:#991b1b}.review{background:#dbeafe;color:#1d4ed8}.resolved{background:#dcfce7;color:#166534}.repair{    background: #FFF7AE;color: #3F3F00;;}
 .small{font-size:12px;color:var(--muted)}.empty{text-align:center;padding:35px;color:var(--muted)}
 .modal{position:fixed;inset:0;background:#0008;display:none;align-items:center;justify-content:center;padding:20px}.modal.open{display:flex}.modal-card{background:white;border-radius:14px;max-width:600px;width:100%;max-height:90vh;overflow:auto;padding:20px}
