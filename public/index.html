@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Turo Unlisted Vehicle Tracker</title>
+<style>
+:root{--bg:#f5f6f8;--card:#fff;--text:#15171a;--muted:#6b7280;--line:#e5e7eb;--accent:#111827;--green:#15803d;--yellow:#a16207;--red:#b91c1c;--blue:#2563eb}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font:14px/1.45 Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--text)}
+header{background:#111827;color:white;padding:0 24px}
+.header-row{display:flex;align-items:center;justify-content:space-between;padding:16px 0}
+.brand{font-weight:750;font-size:18px}.brand span{color:#9ca3af;font-weight:500}
+nav{display:flex;gap:0;border-top:1px solid #374151}
+nav button{background:transparent;border:0;border-bottom:3px solid transparent;color:#9ca3af;padding:10px 20px;font:inherit;font-weight:650;cursor:pointer}
+nav button.active{color:white;border-bottom-color:#2563eb}
+nav button:hover{color:#e5e7eb}
+.container{max-width:1060px;margin:24px auto;padding:0 18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;box-shadow:0 1px 2px #00000008;margin-bottom:16px}
+h2,h3{margin:0 0 12px}h2{font-size:18px}h3{font-size:15px}
+.drop{border:2px dashed #cbd5e1;border-radius:12px;padding:28px 16px;text-align:center;background:#f8fafc;cursor:pointer}
+.drop.drag{border-color:var(--blue);background:#eff6ff}.drop strong{display:block;margin-bottom:5px}
+input[type=file]{display:none}
+.preview{width:100%;max-height:230px;object-fit:contain;border-radius:10px;margin-top:12px;display:none;background:#111}
+.field{margin-top:12px}.field label{display:block;font-size:12px;font-weight:650;margin-bottom:5px;color:#374151}
+input,select,textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 10px;background:#fff;color:var(--text);font:inherit}
+textarea{min-height:72px;resize:vertical}
+button{border:0;border-radius:8px;padding:9px 12px;font:inherit;font-weight:650;cursor:pointer}
+.primary{background:#111827;color:white}.secondary{background:#eef2f7;color:#111827}.danger{background:#fee2e2;color:#991b1b}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.progress{height:6px;background:#e5e7eb;border-radius:99px;overflow:hidden;margin-top:12px;display:none}.bar{height:100%;width:0;background:#2563eb;transition:width .2s}
+.status{font-size:12px;color:var(--muted);margin-top:8px;min-height:18px}
+.toolbar{display:flex;gap:9px;align-items:center;margin-bottom:12px}.toolbar input{max-width:220px}
+.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:10px}
+table{width:100%;border-collapse:collapse}th,td{padding:11px 12px;border-bottom:1px solid var(--line);text-align:center;white-space:nowrap}th{font-size:12px;color:var(--muted);background:#f8fafc}tr:last-child td{border-bottom:0}
+.badge{display:inline-block;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:700}.unlisted{background:#fee2e2;color:#991b1b}.review{background:#dbeafe;color:#1d4ed8}.resolved{background:#dcfce7;color:#166534}.repair{    background: #FFF7AE;color: #3F3F00;;}
+.small{font-size:12px;color:var(--muted)}.empty{text-align:center;padding:35px;color:var(--muted)}
+.modal{position:fixed;inset:0;background:#0008;display:none;align-items:center;justify-content:center;padding:20px}.modal.open{display:flex}.modal-card{background:white;border-radius:14px;max-width:600px;width:100%;max-height:90vh;overflow:auto;padding:20px}
+.editing-banner{background:#eff6ff;border:1px solid #bfdbfe;color:#1d4ed8;border-radius:8px;padding:8px 12px;font-size:12px;margin-bottom:12px;display:none}
+.editing-banner.show{display:block}
+.page{display:none}.page.active{display:block}
+@media(max-width:680px){.toolbar{flex-wrap:wrap}.toolbar input{max-width:100%;width:100%}nav button{padding:10px 14px}}
+</style>
+</head>
+<body>
+<header>
+  <div class="header-row">
+    <div class="brand">Turo Tracker</div>
+    <button class="secondary" id="exportBtn" onclick="exportCSV()">Export CSV</button>
+  </div>
+  <nav>
+    <button class="active" id="navAdd" onclick="showPage('add')">Add Vehicle</button>
+    <button id="navList" onclick="showPage('list')">Vehicle List</button>
+  </nav>
+</header>
+
+<div class="container">
+  <!-- PAGE 1: Add Vehicle -->
+  <div class="page active" id="pageAdd">
+    <section class="card">
+      <div class="editing-banner" id="editBanner">Editing an existing vehicle. Saving will update it in the list.</div>
+      <h2>Upload screenshot</h2>
+      <div class="drop" id="drop">
+        <strong>Drop Turo screenshot here</strong>
+        <span class="small">or click to choose an image</span>
+        <input id="file" type="file" accept="image/*">
+        <img id="preview" class="preview">
+      </div>
+      <div class="progress" id="progress"><div class="bar" id="bar"></div></div>
+      <div class="status" id="ocrStatus"></div>
+      <div class="actions">
+        <button class="primary" id="scanBtn" disabled>Process screenshot</button>
+        <button class="secondary" id="clearBtn">Clear</button>
+      </div>
+      <div class="field">
+        <label>OCR text (editable — fix anything the OCR missed)</label>
+        <textarea id="ocrText" placeholder="Extracted text will appear here."></textarea>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Vehicle information</h2>
+      <div class="field"><label>Vehicle</label><input id="vehicle" placeholder="e.g. 2020 Toyota Corolla"></div>
+      <div class="field"><label>Plate</label><input id="plate" placeholder="e.g. ABCD 123"></div>
+      <div class="field"><label>VIN</label><input id="vin" placeholder="17-character VIN"></div>
+      <div class="field"><label>Status</label><select id="status"><option>Unlisted</option><option>At Risk</option><option>Repair</option><option>Listed</option></select></div>
+      <div class="field"><label>Notes</label><textarea id="notes" placeholder="Anything else worth mentioning — mileage, issue, next action, etc."></textarea></div>
+      <div class="actions">
+        <button class="primary" id="saveBtn">Save vehicle</button>
+        <button class="secondary" id="cancelEditBtn" style="display:none">Cancel edit</button>
+      </div>
+    </section>
+  </div>
+
+  <!-- PAGE 2: Vehicle List -->
+  <div class="page" id="pageList">
+    <section class="card">
+      <div class="toolbar">
+        <!-- <h2 style="margin-right:auto">Tracked vehicles</h2> -->
+        <input id="search" placeholder="Search...">
+        <select id="filter"><option>All</option><option>Unlisted</option><option>At Risk</option><option>Repair</option><option>Listed</option></select>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Vehicle</th><th>Plate</th><th>VIN</th><th>Status</th><th>Updated</th><th></th></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div class="modal" id="modal">
+  <div class="modal-card">
+    <h2>Vehicle details</h2>
+    <div id="modalBody"></div>
+    <div class="actions">
+      <button class="secondary" onclick="closeModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+let imageFile=null;
+let vehicles=[];
+const API_URL="/api";
+
+async function loadVehicles(){
+  const response=await fetch(`${API_URL}/vehicles`);
+  if(!response.ok) throw new Error(`Load failed: ${response.status}`);
+  vehicles=await response.json();
+  render();
+}
+
+async function saveVehicleToDatabase(vehicleData){
+  const response=await fetch(`${API_URL}/vehicles`,{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify(vehicleData)
+  });
+  if(!response.ok) throw new Error(`Save failed: ${response.status}`);
+  return response.json();
+}
+
+async function deleteVehicleFromDatabase(id){
+  const response=await fetch(`${API_URL}/vehicles/${encodeURIComponent(id)}`,{
+    method:"DELETE"
+  });
+  if(!response.ok) throw new Error(`Delete failed: ${response.status}`);
+  return response.json();
+}
+
+//let vehicles=JSON.parse(localStorage.getItem('turoVehicles')||'[]');
+let editingId=null;
+
+/* ---------- Navigation ---------- */
+function showPage(p){
+  document.querySelectorAll('.page').forEach(el=>el.classList.remove('active'));
+  $('page'+p.charAt(0).toUpperCase()+p.slice(1)).classList.add('active');
+  $('navAdd').classList.toggle('active',p==='add');
+  $('navList').classList.toggle('active',p==='list');
+  if(p==='list')render();
+  if(p==='add')$('exportBtn').style.display='none';else $('exportBtn').style.display='inline-block';
+}
+// Show export button only on list page initially
+$('exportBtn').style.display='none';
+
+/* ---------- Drag & drop ---------- */
+$('drop').onclick=()=>$('file').click();
+$('file').onchange=e=>setFile(e.target.files[0]);
+['dragover','dragenter'].forEach(x=>$('drop').addEventListener(x,e=>{e.preventDefault();$('drop').classList.add('drag')}));
+['dragleave','drop'].forEach(x=>$('drop').addEventListener(x,e=>{e.preventDefault();$('drop').classList.remove('drag')}));
+$('drop').addEventListener('drop',e=>setFile(e.dataTransfer.files[0]));
+$('scanBtn').onclick=processImage;
+$('clearBtn').onclick=clearForm;
+$('saveBtn').onclick=saveVehicle;
+$('cancelEditBtn').onclick=()=>{editingId=null;$('editBanner').classList.remove('show');$('cancelEditBtn').style.display='none';clearForm()};
+$('search').oninput=render;
+$('filter').onchange=render;
+
+/* ---------- File handling ---------- */
+function setFile(file){
+  if(!file||!file.type.startsWith('image/'))return;
+  imageFile=file;$('scanBtn').disabled=false;
+  const r=new FileReader();r.onload=e=>{$('preview').src=e.target.result;$('preview').style.display='block'};r.readAsDataURL(file);
+  $('ocrStatus').textContent='Screenshot ready — click Process.';
+}
+
+/* ---------- OCR ---------- */
+async function processImage(){
+  if(!imageFile)return;
+  $('progress').style.display='block';$('bar').style.width='5%';$('ocrStatus').textContent='Reading screenshot...';
+  try{
+    const result=await Tesseract.recognize(imageFile,'eng',{logger:m=>{
+      if(m.progress)$('bar').style.width=Math.max(5,Math.round(m.progress*100))+'%';
+      if(m.status)$('ocrStatus').textContent=m.status;
+    }});
+    const text=result.data.text.trim();
+    $('ocrText').value=text;
+    parseOCR(text);
+    $('bar').style.width='100%';
+    $('ocrStatus').textContent='Done — review the fields below before saving.';
+  }catch(e){
+    $('ocrStatus').textContent='OCR failed. You can enter the vehicle info manually.';
+    console.error(e);
+  }
+}
+
+/* ---------- Smart field extraction ---------- */
+function parseOCR(t){
+  const lines=t.split(/\n/).map(x=>x.trim()).filter(Boolean);
+  const extra=[];
+
+  /* --- VIN (17 chars, no I/O/Q) --- */
+  let vin='';
+  const vinLabeled=t.match(/(?:vin|vehicle\s*identification)\s*(?:number|no\.?)?\s*[:#]?\s*([A-HJ-NPR-Z0-9]{17})/i);
+  if(vinLabeled)vin=vinLabeled[1];
+  else{
+    const m=t.match(/\b([A-HJ-NPR-Z0-9]{17})\b/i);
+    if(m)vin=m[1];
+  }
+  if(vin)$('vin').value=vin.toUpperCase();
+
+  /* --- Plate --- */
+  let plate='';
+  const plateLabeled=t.match(/(?:plate|licen[sc]e|lic\.?)\s*(?:plate|number|no\.?)?\s*[:#]?\s*([A-Z0-9][A-Z0-9 -]{2,9})/i);
+  if(plateLabeled)plate=plateLabeled[1].trim();
+  else{
+    const patterns=[
+      /\b([A-Z]{4}\s?\d{3})\b/,
+      /\b([A-Z]{3}\s?\d{3}[A-Z])\b/,
+      /\b([A-Z]{2}\d{4})\b/,
+      /\b([A-Z]\d{3}[A-Z]{3})\b/,
+      /\b([A-Z]{3}\s?\d{4})\b/,
+    ];
+    for(const p of patterns){
+      const m=t.match(p);
+      if(m){plate=m[1];break}
+    }
+  }
+  if(plate)$('plate').value=plate.toUpperCase().replace(/\s+/g,' ').trim();
+
+  /* --- Year --- */
+  const yearMatch=t.match(/\b(19[5-9]\d|20[0-3]\d)\b/);
+  const year=yearMatch?yearMatch[1]:'';
+
+  /* --- Make / Model --- */
+  const makes=['Toyota','Honda','Hyundai','Kia','Nissan','Mazda','Ford','Chevrolet','Chevy','Dodge','Chrysler','Jeep','Volkswagen','VW','Audi','BMW','Mercedes-Benz','Mercedes','Tesla','Subaru','Lexus','Acura','Infiniti','Mitsubishi','Volvo','Buick','Cadillac','GMC','Genesis','Ram','Mini','Porsche','Land Rover','Range Rover'];
+  let vehicleName='';
+  const hit=makes.find(m=>new RegExp('\\b'+m.replace(/[ -]/g,'[- ]')+'\\b','i').test(t));
+  if(hit){
+    const idx=lines.findIndex(l=>new RegExp('\\b'+hit.replace(/[ -]/g,'[- ]')+'\\b','i').test(l));
+    if(idx>=0){
+      let line=lines[idx].slice(0,80);
+      line=line.replace(/^[\s\W]+/,'');
+      vehicleName=line;
+    }
+  }
+  if(year&&!vehicleName){
+    const ym=t.match(new RegExp(year+'\\s+([A-Za-z]+)\\s+([A-Za-z]+)'));
+    if(ym)vehicleName=`${year} ${ym[1]} ${ym[2]}`;
+  }
+  if(vehicleName)$('vehicle').value=vehicleName;
+
+  /* --- Mileage --- */
+  const mileageMatch=t.match(/(?:mileage|odometer|odo|km)\s*[:#]?\s*([\d,]{4,7})/i);
+  if(mileageMatch){
+    extra.push('Mileage: '+mileageMatch[1].replace(/,/g,'')+' km');
+  }
+
+  /* --- Vehicle ID --- */
+  const idMatch=t.match(/(?:vehicle\s*id|car\s*id|listing\s*id|id)\s*[:#]?\s*([A-Z0-9_-]{3,30})/i);
+  if(idMatch&&idMatch[1].length>=3){
+    extra.push('Vehicle ID: '+idMatch[1]);
+  }
+
+  if(extra.length)$('notes').value=extra.join('\n');
+}
+
+/* ---------- Form ---------- */
+function getForm(){
+  return {
+    id:editingId||crypto.randomUUID(),
+    vehicle:$('vehicle').value.trim(),
+    plate:$('plate').value.trim(),
+    vin:$('vin').value.trim(),
+    status:$('status').value,
+    notes:$('notes').value.trim(),
+    ocr:$('ocrText').value,
+    updated:new Date().toISOString()
+  };
+}
+
+async function saveVehicle(){
+  const v=getForm();
+
+  if(!v.vehicle&&!v.vin&&!v.plate){
+    alert('Enter at least a vehicle name, VIN, or plate.');
+    return;
+  }
+
+  const saveBtn=$('saveBtn');
+  saveBtn.disabled=true;
+  saveBtn.textContent='Saving...';
+
+  try {
+    const saved=await saveVehicleToDatabase(v);
+
+    if(editingId){
+      const idx=vehicles.findIndex(x=>x.id===editingId);
+      if(idx>=0) vehicles[idx]={
+        ...v,
+        ...saved
+      };
+    }else{
+      vehicles.unshift({
+        ...v,
+        ...saved
+      });
+    }
+
+    editingId=null;
+    $('editBanner').classList.remove('show');
+    $('cancelEditBtn').style.display='none';
+
+    clearForm();
+    render();
+
+    $('ocrStatus').textContent='Vehicle saved to database.';
+
+  } catch(error) {
+    console.error(error);
+    alert('Could not save vehicle to the database.');
+    $('ocrStatus').textContent='Database save failed.';
+  } finally {
+    saveBtn.disabled=false;
+    saveBtn.textContent='Save vehicle';
+  }
+}
+
+function clearForm(){
+  imageFile=null;$('file').value='';$('preview').style.display='none';$('preview').src='';
+  $('scanBtn').disabled=true;
+  ['vehicle','plate','vin','notes','ocrText'].forEach(id=>$(id).value='');
+  $('status').value='Unlisted';$('ocrStatus').textContent='';
+  $('progress').style.display='none';$('bar').style.width='0';
+}
+
+function editVehicle(id){
+  const v=vehicles.find(x=>x.id===id);if(!v)return;
+  editingId=id;
+  $('vehicle').value=v.vehicle||'';
+  $('plate').value=v.plate||'';
+  $('vin').value=v.vin||'';
+  $('status').value=v.status||'Unlisted';
+  $('notes').value=v.notes||'';
+  $('ocrText').value=v.ocr||'';
+  $('editBanner').classList.add('show');
+  $('cancelEditBtn').style.display='inline-block';
+  showPage('add');
+}
+
+/* ---------- Table ---------- */
+function badge(s){return '<span class="badge '+({Unlisted:'unlisted','At Risk':'review',Repair:'repair',Listed:'resolved'}[s]||'')+'">'+esc(s)+'</span>'}
+
+function render(){
+  const q=$('search').value.toLowerCase(),f=$('filter').value;
+  const rows=vehicles.filter(v=>(f==='All'||v.status===f)&&JSON.stringify(v).toLowerCase().includes(q));
+  $('tbody').innerHTML=rows.length?rows.map(v=>`<tr>
+    <td><b>${esc(v.vehicle||'Unknown vehicle')}</b></td>
+    <td>${esc(v.plate||'—')}</td>
+    <td>${esc(v.vin||'—')}</td>
+    <td>${badge(v.status)}</td>
+    <td><span class="small">${new Date(v.updated).toLocaleDateString()}</span></td>
+    <td><button class="secondary" onclick="view('${v.id}')">View</button> <button class="secondary" onclick="editVehicle('${v.id}')">Edit</button> <button class="danger" onclick="removeVehicle('${v.id}')">Delete</button></td>
+  </tr>`).join(''):'<tr><td colspan="6" class="empty">No vehicles tracked yet. Go to Add Vehicle to get started.</td></tr>';
+}
+
+/* ---------- Modal ---------- */
+function view(id){
+  const v=vehicles.find(x=>x.id===id);if(!v)return;
+  $('modalBody').innerHTML=
+    `${field('Vehicle',v.vehicle)}
+     ${field('Plate',v.plate)}
+     ${field('VIN',v.vin)}
+     ${field('Status',v.status)}
+     ${field('Notes',v.notes)}
+     ${field('OCR text',v.ocr)}
+     <p class="small" style="margin-top:8px">Updated ${new Date(v.updated).toLocaleString()}</p>`;
+  $('modal').classList.add('open');
+}
+function field(a,b){return `<div class="field"><label>${esc(a)}</label><div style="padding:9px 10px;background:#f8fafc;border-radius:8px;border:1px solid var(--line);white-space:pre-wrap">${esc(b||'—')}</div></div>`}
+function closeModal(){$('modal').classList.remove('open')}
+
+/* ---------- Delete / Export ---------- */
+function removeVehicle(id){
+  if(confirm('Delete this vehicle?')){
+    vehicles=vehicles.filter(v=>v.id!==id);
+    localStorage.setItem('turoVehicles',JSON.stringify(vehicles));
+    if(editingId===id){editingId=null;$('editBanner').classList.remove('show');$('cancelEditBtn').style.display='none'}
+    render();
+  }
+}
+function exportCSV(){
+  const cols=['vehicle','plate','vin','status','notes','updated'];
+  const csv=[cols.join(','),...vehicles.map(v=>cols.map(c=>`"${String(v[c]??'').replaceAll('"','""')}"`).join(','))].join('\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='turo-unlisted-vehicles.csv';a.click();
+}
+
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+
+render();
+</script>
+<script data-pplx-inline-edit>
+(function () {
+  if (window === window.top) return;
+
+  const allowedParentOrigins = ["https://www.perplexity.ai","https://perplexity.ai","https://testing.perplexity.ai","https://staging.perplexity.ai","https://*.preview.i.perplexity.ai","http://perplexity.localhost","http://localhost:1420","http://127.0.0.1:1420","http://localhost:3000","http://127.0.0.1:3000","http://localhost:5173","http://127.0.0.1:5173"];
+  const MAX_FONT_BYTES = 500 * 1024;
+  const MAX_TOTAL_FONT_BYTES = 2 * 1024 * 1024;
+  let scrollForwarding = false;
+  let scrollRaf = 0;
+  let trustedTopOrigin = null;
+
+  // Allow entries like "https://*.preview.i.perplexity.ai" — the wildcard
+  // matches a single DNS label (no dots), so "https://*.foo" cannot stretch
+  // across multiple labels.
+  function matchesAllowedOrigin(origin) {
+    if (!origin) return false;
+    for (const entry of allowedParentOrigins) {
+      if (!entry.includes("*")) {
+        if (entry === origin) return true;
+        continue;
+      }
+      const pattern = new RegExp(
+        "^" +
+          entry.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^.]+") +
+          "$",
+      );
+      if (pattern.test(origin)) return true;
+    }
+    return false;
+  }
+
+  // Trust decision: when the sender is same-origin-visible (event.origin is a
+  // real origin like https://www.perplexity.ai) we trust event.origin directly.
+  // When event.origin is "null" (opaque broker srcdoc), we fall back to the
+  // broker's stamped `parentOrigin` to identify the top window. The fallback
+  // is claim-only — we rely on the browser's native `targetOrigin` enforcement
+  // on the response path (see postToTrustedTop) to ensure replies can't be
+  // delivered to anyone but the actual top window of that claimed origin.
+  function getTrustedParentOrigin(event) {
+    const forwardedParentOrigin =
+      typeof event.data.parentOrigin === "string" ? event.data.parentOrigin : null;
+    const parentOrigin = event.origin === "null" ? forwardedParentOrigin : event.origin;
+    return matchesAllowedOrigin(parentOrigin) ? parentOrigin : null;
+  }
+
+  // All responses go to window.top with targetOrigin = the allowlisted origin.
+  // An attacker that iframes us inside their own null-origin broker can claim
+  // any parentOrigin they like, but the browser will drop the reply whenever
+  // the real top's origin doesn't match — so the screenshot never leaves.
+  function postToTrustedTop(message) {
+    if (!trustedTopOrigin) return;
+    try {
+      window.top.postMessage(message, trustedTopOrigin);
+    } catch (_error) {}
+  }
+
+  function inlineAll(original, clone) {
+    if (original.nodeType !== 1 || clone.nodeType !== 1) return;
+
+    try {
+      const computedStyle = getComputedStyle(original);
+      // cssText on a computed style is the serialized declaration in modern
+      // Chromium/Safari — a single read beats enumerating ~400 longhand
+      // properties. Firefox returns "" here, so we fall back on empty.
+      const serialized = computedStyle.cssText;
+      if (serialized) {
+        clone.style.cssText = serialized;
+      } else {
+        const parts = new Array(computedStyle.length);
+        for (let index = 0; index < computedStyle.length; index += 1) {
+          const property = computedStyle[index];
+          parts[index] = `${property}:${computedStyle.getPropertyValue(property)};`;
+        }
+        clone.style.cssText = parts.join("");
+      }
+    } catch (_error) {}
+
+    const originalChildren = original.children;
+    const clonedChildren = clone.children;
+    for (
+      let index = 0;
+      index < originalChildren.length && index < clonedChildren.length;
+      index += 1
+    ) {
+      inlineAll(originalChildren[index], clonedChildren[index]);
+    }
+  }
+
+  function extractFontUrl(srcValue) {
+    const matches = [
+      ...srcValue.matchAll(
+        /url\(["']?([^"')]+)["']?\)(?:\s*format\(["']?([^"')]+)["']?\))?/gi,
+      ),
+    ];
+    if (matches.length === 0) return null;
+    const woff2 = matches.find((m) => m[2] && m[2].toLowerCase().includes("woff2"));
+    if (woff2) return woff2[1];
+    const woff = matches.find((m) => m[2] && m[2].toLowerCase().includes("woff"));
+    if (woff) return woff[1];
+    return matches[0][1];
+  }
+
+  // Cache resolved font URL -> data URI across captures. Fonts on a page
+  // essentially never change, and a batch run emits multiple captures back to
+  // back — without this we'd refetch + re-base64 every time.
+  const fontDataUriCache = new Map();
+  const SRC_DECLARATION_RE = /src\s*:\s*[^;}]+/i;
+
+  async function fetchAsDataUri(url) {
+    if (fontDataUriCache.has(url)) return fontDataUriCache.get(url);
+    let dataUri = null;
+    try {
+      const response = await fetch(url, { mode: "cors", credentials: "omit" });
+      if (response.ok) {
+        const blob = await response.blob();
+        if (blob.size <= MAX_FONT_BYTES) {
+          dataUri = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () =>
+              resolve(typeof reader.result === "string" ? reader.result : null);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(blob);
+          });
+        }
+      }
+    } catch (_error) {
+      dataUri = null;
+    }
+    fontDataUriCache.set(url, dataUri);
+    return dataUri;
+  }
+
+  function collectFontFaceRuleTexts() {
+    const rules = [];
+    for (const sheet of document.styleSheets) {
+      let cssRules;
+      try {
+        cssRules = sheet.cssRules;
+      } catch (_error) {
+        continue;
+      }
+      if (!cssRules) continue;
+      for (const rule of cssRules) {
+        const cssText = rule.cssText || "";
+        if (cssText.startsWith("@font-face")) rules.push(cssText);
+      }
+    }
+    return rules;
+  }
+
+  async function buildInlinedFontCss() {
+    const ruleTexts = collectFontFaceRuleTexts();
+    if (ruleTexts.length === 0) return null;
+
+    const resolved = ruleTexts.map((cssText) => {
+      if (!SRC_DECLARATION_RE.test(cssText)) return null;
+      const srcMatch = cssText.match(/src\s*:\s*([^;}]+)[;}]/i);
+      if (!srcMatch) return null;
+      const url = extractFontUrl(srcMatch[1]);
+      if (!url) return null;
+      try {
+        return { cssText, url: new URL(url, document.baseURI).href };
+      } catch (_error) {
+        return null;
+      }
+    });
+
+    const dataUris = await Promise.all(
+      resolved.map((entry) => (entry ? fetchAsDataUri(entry.url) : Promise.resolve(null))),
+    );
+
+    const inlined = [];
+    let totalBytes = 0;
+    for (let index = 0; index < resolved.length; index += 1) {
+      const entry = resolved[index];
+      const dataUri = dataUris[index];
+      if (!entry || !dataUri) continue;
+      const approxBytes = dataUri.length * 0.75;
+      if (totalBytes + approxBytes > MAX_TOTAL_FONT_BYTES) break;
+      totalBytes += approxBytes;
+      inlined.push(entry.cssText.replace(SRC_DECLARATION_RE, `src: url("${dataUri}")`));
+    }
+    return inlined.length > 0 ? inlined.join("\n") : null;
+  }
+
+  function stripExternal(clone) {
+    const images = clone.querySelectorAll("img");
+    for (let index = 0; index < images.length; index += 1) {
+      const src = images[index].getAttribute("src");
+      if (src && !src.startsWith("data:")) images[index].removeAttribute("src");
+    }
+
+    const elements = clone.querySelectorAll("*");
+    for (let index = 0; index < elements.length; index += 1) {
+      const style = elements[index].style.cssText;
+      if (style && style.includes("url(")) {
+        elements[index].style.cssText = style.replace(
+          /url\(["']?(?!data:)[^)"']*["']?\)/gi,
+          "none",
+        );
+      }
+    }
+  }
+
+  function emitScroll() {
+    scrollRaf = 0;
+    if (!scrollForwarding) return;
+    postToTrustedTop({
+      type: "INLINE_EDIT_SCROLL",
+      scrollX: window.scrollX,
+      scrollY: window.scrollY,
+    });
+  }
+
+  window.addEventListener(
+    "scroll",
+    function () {
+      if (!scrollForwarding || scrollRaf) return;
+      scrollRaf = requestAnimationFrame(emitScroll);
+    },
+    { passive: true, capture: true },
+  );
+
+  async function handleCaptureRequest(event) {
+    const requestId = event.data.requestId;
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+
+    function postResult(dataUrl) {
+      postToTrustedTop({
+        type: "INLINE_EDIT_SCREENSHOT_RESULT",
+        requestId,
+        dataUrl,
+        scrollX,
+        scrollY,
+      });
+    }
+
+    try {
+      // Wait for any pending web fonts to resolve so both inline metrics and
+      // the @font-face inlining below see the same loaded faces.
+      if (document.fonts && document.fonts.ready) {
+        try {
+          await document.fonts.ready;
+        } catch (_error) {}
+      }
+
+      const clone = document.documentElement.cloneNode(true);
+      inlineAll(document.documentElement, clone);
+
+      const removedNodes = clone.querySelectorAll("script,link[rel=\"stylesheet\"],style");
+      for (let index = 0; index < removedNodes.length; index += 1) {
+        removedNodes[index].remove();
+      }
+
+      stripExternal(clone);
+
+      // Re-embed web fonts as data-URI @font-face rules so the SVG rasterizer
+      // can resolve them — external font URLs aren't fetched during
+      // foreignObject rendering, which would otherwise force a fallback face
+      // and change text metrics.
+      const inlinedFontCss = await buildInlinedFontCss();
+      if (inlinedFontCss) {
+        const styleEl = document.createElement("style");
+        styleEl.textContent = inlinedFontCss;
+        const head = clone.querySelector("head");
+        if (head) head.appendChild(styleEl);
+        else clone.insertBefore(styleEl, clone.firstChild);
+      }
+
+      const html = new XMLSerializer().serializeToString(clone);
+      const svg =
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">` +
+        '<foreignObject width="100%" height="100%">' +
+        `<div xmlns="http://www.w3.org/1999/xhtml" style="width:${width}px;height:${height}px;overflow:hidden">` +
+        `<div style="position:relative;left:-${scrollX}px;top:-${scrollY}px">` +
+        html +
+        "</div></div></foreignObject></svg>";
+      const svgUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+      const image = new Image();
+      image.onload = function () {
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d").drawImage(image, 0, 0);
+        postResult(canvas.toDataURL("image/png"));
+      };
+      image.onerror = function () {
+        postResult(null);
+      };
+      image.src = svgUrl;
+    } catch (_error) {
+      postResult(null);
+    }
+  }
+
+  window.addEventListener("message", function (event) {
+    if (!event.data) return;
+    // Only accept messages from the direct parent frame. Blocks sibling /
+    // unrelated-window postMessage senders that could otherwise reach us.
+    if (event.source !== window.parent) return;
+
+    const trustedParentOrigin = getTrustedParentOrigin(event);
+    if (!trustedParentOrigin) return;
+    trustedTopOrigin = trustedParentOrigin;
+
+    if (event.data.type === "INLINE_EDIT_SCROLL_START") {
+      scrollForwarding = true;
+      emitScroll();
+      return;
+    }
+
+    if (event.data.type === "INLINE_EDIT_SCROLL_STOP") {
+      scrollForwarding = false;
+      if (scrollRaf) cancelAnimationFrame(scrollRaf);
+      scrollRaf = 0;
+      return;
+    }
+
+    if (event.data.type !== "INLINE_EDIT_CAPTURE_REQUEST") return;
+
+    handleCaptureRequest(event);
+  });
+})();
+
+
+
+loadVehicles().catch(error=>{console.error(error);ocrStatus.textContent="Could not connect to the database."});
+</script></body>
+</html>
