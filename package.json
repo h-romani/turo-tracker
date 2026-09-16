@@ -1,5 +1,12 @@
 {
-  "type":"module",
-  "scripts":{"start":"node server.js"},
-  "dependencies":{"@libsql/client":"latest","cors":"latest","dotenv":"latest","express":"latest"}
+  "type": "module",
+  "scripts": {
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.15.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.0.0",
+    "express": "^5.1.0"
+  }
 }
